@@ -1,0 +1,7 @@
+python-xlib
+dpkt
+autopy
+psutil
+schedule
+configobj
+netifaces
