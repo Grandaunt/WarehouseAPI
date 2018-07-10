@@ -1,7 +1,10 @@
+#!/usr/bin/python3
 # Create your views here.
 
 from rest_framework.decorators import api_view
-from utils.jsonformat import reslistif, resAlllistif
+
+from utils.db import MSSQL
+from utils.jsonformat import reslistif, resAlllistif, validationMD5, json_error
 
 
 # http://wms.bjszhgx.com/api/receive/userlogin?{"PassWord":"123456","Phone":"18610056339"}
@@ -15,27 +18,43 @@ def UserLogin(req,format=None):
     elif req.method == 'POST':
         Phone=  req.POST['Phone']
         PassWord = req.POST['PassWord']
-    newsql =  "select * from System_Users where Mobile = '"+Phone+"'"
-    print(newsql)
-    return reslistif(newsql)
+    newsql0 =  "select LoginKey from System_Users where Mobile = '"+Phone+"'"
+    ms = MSSQL()
+    reslist = ms.ExecQuery(newsql0.encode('utf-8'))
+    print(reslist)
+    PassWord=validationMD5(reslist.get("LoginKey"),PassWord,"UTF-16")
+    newsql1 = "select * from System_Users where Mobile = '" + Phone + "' and LoginPwd = '"+PassWord+"'"
+    return reslistif(newsql1)
 
 # 全部数据
 @api_view(['GET', 'POST'])
 def GetAllList(req,format=None):
+    privateKey = "202CA26E33226DC"
     if req.method == 'GET':
-        # Phone = req.GET["Phone"]
+        userid = req.GET["userid"]
         cangkuid = req.GET['cangkuid']
+        md5 = req.GET['md5']
     elif req.method == 'POST':
-        # Phone=  req.POST['Phone']
+        userid=  req.POST['userid']
         cangkuid = req.POST['cangkuid']
-    newsql1 = "select * from Stock_IN"
-    newsql2 = "select * from Stock_IN_Detail"
-    newsql3 = "select * from Stock_OUT"
-    # newsql4 = "select * from Stock_OUT_Detail"
-    newsql5 = "select * from Stock_CHECK"
-    newsqlList={"Stock_IN":newsql1,"Stock_IN_Detail":newsql2,"Stock_OUT":newsql3,"Stock_CHECK":newsql5}
-    # print(newsql)
-    return resAlllistif(newsqlList)
+        md5 = req.POST['md5']
+    if validationMD5(userid+cangkuid,privateKey,"UTF-8")==md5:
+        print("MD5验证成功")
+        newsql0 = "select * from System_Users where UserId = '"+userid+"' and RoleId <= '3'"
+        ms = MSSQL()
+        reslist = ms.ExecQuery(newsql0.encode('utf-8'))
+        if reslist:#判断用户角色权限
+            newsql1 = "select * from Stock_IN"
+            newsql2 = "select * from Stock_IN_Detail"
+            newsql3 = "select * from Stock_OUT"
+            newsql4 = "select * from Stock_OUT_Detail"
+            newsql5 = "select * from Stock_CHECK"
+            newsql6 = "select * from Stock_CHECK_Detail"
+            newsqlList={"Stock_IN":newsql1,"Stock_IN_Detail":newsql2,"Stock_OUT":newsql3,"Stock_OUT_Detail":newsql4,"Stock_CHECK":newsql5,"Stock_CHECK_Detail":newsql6}
+        # print(newsql)
+        return resAlllistif(newsqlList)
+    else:
+        return json_error()
 # 入库单
 @api_view(['GET', 'POST'])
 def GetStockinList(req,format=None):
